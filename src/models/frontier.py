@@ -44,7 +44,8 @@ class FrontierModel:
             subject: str,
             temperature: float = 0.7,
             max_tokens: int = 1024,
-            use_logprobs: bool = True
+            use_logprobs: bool = True,
+            reference_answer: str = None
         ) -> Dict:
         """
         Generate response from GPT-4o with confidence scoring.
@@ -55,9 +56,10 @@ class FrontierModel:
             temperature: Sampling temperature (0.0-1.0)
             max_tokens: Maximum response length
             use_logprobs: Whether to return log probabilities for confidence
+            reference_answer: Optional reference answer for accuracy calculation
         
         Returns:
-            Dictionary with 'response', 'confidence', and 'usage'
+            Dictionary with 'response', 'confidence', 'usage', and optional 'accuracy_cosine'
         """
         
         valid_subjects = ["Mathematics", "Science", "English"]
@@ -84,7 +86,7 @@ class FrontierModel:
             # Calculate confidence from logprobs
             confidence = self._calculate_confidence(response.choices[0].logprobs) if use_logprobs else None
             
-            return {
+            result = {
                 "response": response_text,
                 "confidence": confidence,
                 "usage": {
@@ -94,9 +96,21 @@ class FrontierModel:
                 }
             }
             
+            # Add cosine similarity accuracy if reference answer provided
+            if reference_answer:
+                from ..evaluation import ModelEvaluator
+                evaluator = ModelEvaluator()
+                accuracy = evaluator.evaluate_accuracy_cosine(response_text, reference_answer)
+                result["accuracy_cosine"] = accuracy
+                result["reference_provided"] = True
+            else:
+                result["reference_provided"] = False
+            
+            return result
+            
         except Exception as e:
             print(f"Error generating response: {e}")
-            return {
+            result = {
                 "response": "I apologize, but I encountered an error. Please try again.",
                 "confidence_metrics": {
                     "confidence": 0.0,
@@ -107,6 +121,18 @@ class FrontierModel:
                 },
                 "usage": None
             }
+            
+            # Still compute accuracy if reference provided
+            if reference_answer:
+                from ..evaluation import ModelEvaluator
+                evaluator = ModelEvaluator()
+                accuracy = evaluator.evaluate_accuracy_cosine(result["response"], reference_answer)
+                result["accuracy_cosine"] = accuracy
+                result["reference_provided"] = True
+            else:
+                result["reference_provided"] = False
+                
+            return result
 
     def _calculate_confidence(self, logprobs_data) -> Dict:
         """

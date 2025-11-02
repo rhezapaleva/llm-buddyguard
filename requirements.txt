@@ -16,4 +16,4 @@ datasets
 
 # Utilities
 python-dotenv
-tqdm
+tqdmsentence-transformers
